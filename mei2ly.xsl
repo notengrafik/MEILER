@@ -10,6 +10,14 @@
 <xsl:stylesheet version="2.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:mei="http://www.music-encoding.org/ns/mei" xmlns:saxon="http://saxon.sf.net/" xmlns:local="NS:LOCAL" exclude-result-prefixes="saxon">
   <xsl:strip-space elements="*" />
   <xsl:output method="text" indent="no" encoding="UTF-8" />
+  
+  <xsl:param name="tstampResolution" select="265" as="xs:integer"/>
+
+  <xsl:key name="hasUsableMeterDef" match="*[self::mei:scoreDef or self::mei:staffDef][(@meter.count and @meter.unit) or @meter.sym]" use="generate-id()"/>
+  <xsl:key name="hasUsableMeterDef" match="mei:meterSig[(@count and @unit) or @sym]" use="generate-id()"/>
+  <xsl:key name="staffsByMeterDef" match="mei:staff" use="preceding::*[key('hasUsableMeterDef', generate-id())][not(self::mei:staffDef) or @n=current()/@n][1]/generate-id()"/>
+  <xsl:key name="meterDefByStaff" match="*[key('hasUsableMeterDef', generate-id())]" use="key('staffsByMeterDef', generate-id())/generate-id()"/>
+  
   <xsl:template match="/">
     <xsl:text>\version "2.18.2"&#10;</xsl:text>
     <xsl:text>#(ly:set-option 'point-and-click #f)&#10;</xsl:text>
@@ -213,6 +221,15 @@
             <xsl:apply-templates/>
           </xsl:otherwise>
         </xsl:choose>
+        <!-- Print dynamics defined with @stamp -->
+        <xsl:variable name="tstampDynamics" select="ancestor::mei:measure[1]/mei:dynam[@staff=$staffNumber][@tstamp][not(@startid)]"/>
+        <xsl:if test="$tstampDynamics">
+          <xml:text>{ </xml:text>
+          <xsl:call-template name="addTstampDynamics">
+            <xsl:with-param name="dynamics" select="$tstampDynamics"/>
+          </xsl:call-template>
+          <xml:text>} </xml:text>
+        </xsl:if>
         <xsl:text>&gt;&gt;&#32;</xsl:text>
         <!-- print bar line -->
         <xsl:if test="ancestor::mei:measure/@right">
@@ -3760,6 +3777,60 @@
           <xsl:with-param name="verseNumber" select="$verseNumber+1" />
         </xsl:call-template>
       </xsl:if>
+  </xsl:template>
+  <xsl:template name="tstampsToLyDurations">
+    <!-- This template takes a list of tstamps and creates a list of Lilypond durations suitable 
+      for e.g. creating Lilypond spacer rests that tstamped events can be attached to -->
+    <xsl:param name="tstamps"/>
+    <xsl:param name="shortestDuration" select="512"/>
+    <!-- QUESTION: Is this way of retrieving the meter unit sensible? -->
+    <xsl:param name="meterUnit" select="preceding::mei:meter[1]/@unit"/>
+    <xsl:param name="sortedUniqueTstamps">
+      <xsl:for-each-group select="$tstamps" group-by=".">
+        <xsl:sort select="current-grouping-key()" data-type="number"/>
+        <xsl:copy-of select="number(current-grouping-key())"/>
+      </xsl:for-each-group>
+    </xsl:param>
+    <xsl:param name="currentTstamp" select="0"/>
+    
+    
+  </xsl:template>
+  
+  <xsl:template name="write-skip-event">
+    <xsl:param name="durationNumbers" as="xs:integer+"/>
+    <xsl:param name="properties" as="xs:string" select="''"/>
+    #(make-music
+        'SkipEvent
+        'duration
+        (ly:make-duration <xsl:value-of select="for $n in $durationNumbers return concat(' ', $n)"/>)
+        <xsl:value-of select="$properties"/>)
+  </xsl:template>
+  
+  <xsl:template name="addTstampDynamics">
+    <xsl:param name="dynamics" as="element()+"/>
+    <xsl:variable name="tstampPositions" select="distinct-values($dynamics/@tstamp/floor(number() * $tstampResolution))"/>
+    <xsl:for-each-group select="$dynamics" group-by="floor(number(@tstamp) * $tstampResolution)">
+      <xsl:sort select="current-grouping-key()" data-type="number"/>
+      <!-- If the first group of dynamics is not on the first beat, we need to create a skip event before -->
+      
+      <xsl:variable name="nextGranularTstamp" select="if (position() lt last()) then  $tstampPositions[position() + 1] else current-grouping-key()+1"/>
+      <xsl:variable name="currentGranularDuration" select="$nextGranularTstamp - current-grouping-key()"/>
+      <!-- TODO: This for now assumes we have some quarter based meter. -->
+      <xsl:call-template name="write-skip-event">
+        <xsl:with-param name="durationNumbers" select="(2, 0, xs:integer($currentGranularDuration), xs:integer($tstampResolution))"/>
+        <xsl:with-param name="properties">
+          'articulations
+          (list
+          <xsl:for-each select="current-group()">
+            (make-music
+              'AbsoluteDynamicEvent
+              'text
+              <!-- TODO: Escape text safely -->
+              "<xsl:value-of select="."/>")
+          </xsl:for-each>)
+        </xsl:with-param>
+      </xsl:call-template>
+    </xsl:for-each-group>
   </xsl:template>
   <!--               -->
   <!-- Make fraction -->
