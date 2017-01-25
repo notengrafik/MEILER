@@ -225,11 +225,7 @@
           <xsl:text>&#10;&#32;&#32;</xsl:text>
         </xsl:if>
         <!-- print bar line -->
-        <xsl:if test="ancestor::mei:measure/@left">
-          <xsl:call-template name="barLine">
-            <xsl:with-param name="barLineStyle" select="ancestor::mei:measure/@left" />
-          </xsl:call-template>
-        </xsl:if>
+        <xsl:apply-templates mode="barLine" select="ancestor::mei:measure[1]/@left"/>
         <xsl:apply-templates select="ancestor::mei:measure/mei:tempo[@copyof or contains(concat(' ',@staff,' '),concat(' ',$staffNumber,' '))][@tstamp='1']" mode="pre" />
         <xsl:if test="ancestor::mei:measure/@metcon='false'">
           <xsl:value-of select="concat('\partial ',min(ancestor::mei:measure/descendant::*/@dur),'&#32;')" />
@@ -245,11 +241,7 @@
         </xsl:choose>
         <xsl:text>&gt;&gt;&#32;</xsl:text>
         <!-- print bar line -->
-        <xsl:if test="ancestor::mei:measure/@right">
-          <xsl:call-template name="barLine">
-            <xsl:with-param name="barLineStyle" select="ancestor::mei:measure/@right" />
-          </xsl:call-template>
-        </xsl:if>
+        <xsl:apply-templates mode="barLine" select="ancestor::mei:measure[1]/@right"/>
         <!-- print bar number -->
         <xsl:if test="ancestor::mei:measure/@n">
           <xsl:value-of select="concat('%',ancestor::mei:measure/@n,'&#10;')" />
@@ -574,20 +566,12 @@
     <xsl:if test="(ancestor::mei:measure[@n and not(@metcon='false')]/@n != preceding::mei:measure[@n and not(@metcon='false')][1]/@n + 1)">
       <xsl:call-template name="setBarNumber" />
     </xsl:if>
-    <xsl:if test="@left">
-      <xsl:call-template name="barLine">
-        <xsl:with-param name="barLineStyle" select="@left" />
-      </xsl:call-template>
-    </xsl:if>
+    <xsl:apply-templates mode="barLine" select="@left"/>
     <xsl:if test="@metcon='false'">
       <xsl:value-of select="concat('\partial ',min(ancestor::mei:measure/descendant::*/@dur),'&#32;')" />
     </xsl:if>
     <xsl:apply-templates/>
-    <xsl:if test="@right">
-      <xsl:call-template name="barLine">
-        <xsl:with-param name="barLineStyle" select="@right" />
-      </xsl:call-template>
-    </xsl:if>
+    <xsl:apply-templates mode="barLine" select="@right"/>
     <xsl:if test="@n">
       <xsl:value-of select="concat('%',@n)" />
     </xsl:if>
@@ -1095,8 +1079,8 @@
   <xsl:template match="mei:barLine[@copyof]">
     <xsl:apply-templates select="ancestor::mei:mdiv[1]//mei:barLine[@xml:id = substring-after(current()/@copyof,'#')]" />
   </xsl:template>
-  <xsl:template name="barLine" match="mei:barLine">
-    <xsl:param name="barLineStyle" select="@form" />
+  <xsl:template name="barLine" mode="barLine #default" match="mei:barLine|mei:measure/@left|mei:measure/@right">
+    <xsl:param name="barLineStyle" select="if (self::mei:barLine) then @form else ." />
     <xsl:if test="@color">
       <xsl:value-of select="'\once \override Staff.BarLine.color = #'" />
       <xsl:call-template name="setColor" />
