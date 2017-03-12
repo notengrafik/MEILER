@@ -2513,14 +2513,14 @@
     <xsl:choose>
       <!-- data.STEMDIRECTION.basic -->
       <xsl:when test="@stem.dir='down'">
-        <xsl:text>\tweak Stem.direction #DOWN </xsl:text>
+        <xsl:text>\once \stemDown </xsl:text>
       </xsl:when>
       <xsl:when test="@stem.dir='up'">
-        <xsl:text>\tweak Stem.direction #UP </xsl:text>
+        <xsl:text>\once \stemUp </xsl:text>
       </xsl:when>
       <!-- data.STEMDIRECTION.extended -->
       <xsl:otherwise>
-        <xsl:text>\tweak Stem.direction #0 </xsl:text>
+        <xsl:text>\once \stemNeutral </xsl:text>
         <xsl:message>INFO: LilyPond only supports basic stem directions</xsl:message>
       </xsl:otherwise>
     </xsl:choose>
@@ -4465,4 +4465,5 @@
     <xsl:variable name="denominatorExponent" select="string-length(substring-after($stringValue, '.'))"/>
     <xsl:value-of select="concat($numerator, '/', '1', local:repeatString('0', $denominatorExponent))"/>
   </xsl:function>
+  <xsl:template match="node()|@*" mode="pre"/>
 </xsl:stylesheet>
