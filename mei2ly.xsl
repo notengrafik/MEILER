@@ -19,7 +19,7 @@
     a tie continues on a different layer nubmer than it started.
   -->
   <xsl:param name="forceContinueVoices" select="false()" as="xs:boolean"/>
-  <xsl:param name="outputBareContentVariables" select="false()"/>
+  <xsl:param name="outputBareContentVariables" select="true()"/>
   <xsl:key name="lyrics-by-staff-number" match="mei:syl|@syl" use="ancestor::mei:staff[1]/@n"/>
   <xsl:key name="id" match="*" use="@xml:id"/>
   <xsl:key name="idref" match="*[@xml:id]" use="concat('#', @xml:id)"/>
@@ -103,9 +103,10 @@
   </xsl:template>
   <!-- MEI.header -->
   <!-- MEI header -->
-  <xsl:template match="mei:meiHead[$outputBareContentVariables=true()]"/>
-  <xsl:template match="mei:meiHead[$outputBareContentVariables=false()]">
-    <xsl:text>\header {&#10;</xsl:text>
+  <!--<xsl:template match="mei:meiHead[$outputBareContentVariables=true()]"/>
+  <xsl:template match="mei:meiHead[$outputBareContentVariables=false()]">-->
+  <xsl:template match="mei:meiHead">
+      <xsl:text>\header {&#10;</xsl:text>
     <xsl:apply-templates/>
     <xsl:text>}&#10;&#10;</xsl:text>
   </xsl:template>
@@ -371,7 +372,20 @@
     <xsl:apply-templates select="descendant::mei:scoreDef[1]" mode="score-setup"/>
   </xsl:template>
   <!-- MEI score definition -->
-  <xsl:template match="mei:scoreDef[$outputBareContentVariables=true()]" mode="score-setup"/>
+  <xsl:template match="mei:scoreDef[$outputBareContentVariables=true()]" mode="score-setup">
+    <xsl:text>common = {&#10;</xsl:text>
+    <xsl:apply-templates select="(descendant-or-self::*/(mei:keySig, @*[starts-with(name(),'key.')]))[1]" />
+    <xsl:if test="ancestor-or-self::*/@*[starts-with(name(),'meter.')]">
+      <xsl:call-template name="meterSig">
+        <xsl:with-param name="meterSymbol" select="ancestor-or-self::*[@meter.sym][1]/@meter.sym" />
+        <xsl:with-param name="meterCount" select="ancestor-or-self::*[@meter.count][1]/@meter.count" />
+        <xsl:with-param name="meterUnit" select="ancestor-or-self::*[@meter.unit][1]/@meter.unit" />
+        <xsl:with-param name="meterRend" select="ancestor-or-self::*[@meter.rend][1]/@meter.rend" />
+      </xsl:call-template>
+      <xsl:apply-templates select="mei:meterSigGrp|mei:meterSig" />
+    </xsl:if>
+    <xsl:text>}</xsl:text>
+  </xsl:template>
   <xsl:template match="mei:scoreDef[$outputBareContentVariables=false()]" mode="score-setup">
     <!-- lilypond score block -->
     <xsl:text>\score { &lt;&lt;&#10;</xsl:text>
