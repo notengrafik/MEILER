@@ -953,11 +953,11 @@
     <xsl:if test="(starts-with(@tuplet,'i') or (ancestor::mei:measure/mei:tupletSpan[@endid]/@startid = $chordKey)) and not(ancestor::mei:tuplet)">
       <xsl:value-of select="concat('\tuplet ',ancestor::mei:measure/mei:tupletSpan[@endid][@startid = $chordKey]/@num,'/',ancestor::mei:measure/mei:tupletSpan[@endid][@startid = $chordKey]/@numbase,' { ')" />
     </xsl:if>
-    <xsl:text>&lt; </xsl:text>
     <xsl:apply-templates mode="setStemDir" select="." />
     <xsl:if test="@stem.len">
       <xsl:value-of select="concat('\tweak Stem.length #', local:VU2LY(@stem.len) * 2, ' ')" />
     </xsl:if>
+    <xsl:text>&lt; </xsl:text>
     <xsl:apply-templates select="mei:note" />
     <xsl:text>&gt;</xsl:text>
     <xsl:call-template name="setDuration" />
