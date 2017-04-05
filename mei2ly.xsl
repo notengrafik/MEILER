@@ -19,6 +19,7 @@
     a tie continues on a different layer nubmer than it started.
   -->
   <xsl:param name="forceContinueVoices" select="false()" as="xs:boolean"/>
+  <xsl:param name="outputBareContentVariables" select="false()"/>
   <xsl:key name="lyrics-by-staff-number" match="mei:syl|@syl" use="ancestor::mei:staff[1]/@n"/>
   <xsl:key name="id" match="*" use="@xml:id"/>
   <xsl:key name="idref" match="*[@xml:id]" use="concat('#', @xml:id)"/>
@@ -102,7 +103,8 @@
   </xsl:template>
   <!-- MEI.header -->
   <!-- MEI header -->
-  <xsl:template match="mei:meiHead">
+  <xsl:template match="mei:meiHead[$outputBareContentVariables=true()]"/>
+  <xsl:template match="mei:meiHead[$outputBareContentVariables=false()]">
     <xsl:text>\header {&#10;</xsl:text>
     <xsl:apply-templates/>
     <xsl:text>}&#10;&#10;</xsl:text>
@@ -369,7 +371,8 @@
     <xsl:apply-templates select="descendant::mei:scoreDef[1]" mode="score-setup"/>
   </xsl:template>
   <!-- MEI score definition -->
-  <xsl:template match="mei:scoreDef" mode="score-setup">
+  <xsl:template match="mei:scoreDef[$outputBareContentVariables=true()]" mode="score-setup"/>
+  <xsl:template match="mei:scoreDef[$outputBareContentVariables=false()]" mode="score-setup">
     <!-- lilypond score block -->
     <xsl:text>\score { &lt;&lt;&#10;</xsl:text>
     <xsl:if test="ancestor::mei:mdiv[1]//@source">
@@ -4007,7 +4010,8 @@
     <xsl:value-of select="concat('\override TextScript.staff-padding = #',local:VU2LY(.),' ')" />
   </xsl:template>
   <!-- page layout -->
-  <xsl:template match="mei:scoreDef" mode="makePageLayout">
+  <xsl:template match="mei:scoreDef[$outputBareContentVariables=true()]" mode="makePageLayout"/>
+  <xsl:template match="mei:scoreDef[$outputBareContentVariables=false()]" mode="makePageLayout">
     <xsl:text>\paper {&#10;</xsl:text>
     <xsl:if test="@page.height">
       <xsl:value-of select="'  paper-height = '" />
