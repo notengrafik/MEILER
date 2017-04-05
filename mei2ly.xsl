@@ -39,6 +39,12 @@
   <xsl:key name="isBeamEnd" match="@beam[contains(., 't')]" use="generate-id(..)"/>
   <xsl:key name="isBeamEnd" match="mei:beamSpan[not(@beam.with)]" use="key('idref', @endid)/generate-id()"/>
   <xsl:key name="breaksByPrecedingMeasure" match="mei:sb|mei:pb" use="preceding::mei:measure[1]/generate-id()"/>
+  <xsl:key name="dynamsByStaff" match="*[self::mei:dynam|self::mei:hairpin]/@tstamp" use="ancestor::mei:measure[1]/mei:staff[@n=current()/../@staff]/generate-id()"/>
+  <xsl:key name="dynamsByStaff" match="*[self::mei:dynam|self::mei:hairpin][@tstamp][@tstamp2]/@tstamp2">
+    <xsl:variable name="measureOffset" select="if (contains(., 'm')) then xs:integer(replace(., '^(\d+)m.*$', '$1')) else 0" as="xs:integer"/>
+    <xsl:variable name="measure" select="ancestor::mei:measure[1]/(if ($measureOffset = 0) then . else following::mei:measure[$measureOffset])" as="element()"/>
+    <xsl:value-of select="$measure/mei:staff[@n = current()/../@staff]/generate-id()"/>
+  </xsl:key>
   <xsl:variable name="durationalTags" select="('bTrem', 'chord', 'fTrem', 'halfmRpt', 'mRest', 'mSpace', 'note', 'rest', 'space', 'beam', 'beatRpt', 'mRpt', 'mRpt2', 'multiRest', 'multiRpt', 'tuplet')"/>
   <xsl:key name="staffDefByFirstAffectedElement" match="mei:staffDef">
     <xsl:variable name="hasPrecedingLayerContent" as="xs:boolean"
@@ -290,7 +296,7 @@
           <xsl:when test="$forceContinueVoices">
             <!-- We make sure that each measure in a staff has the same number of voices. -->
             <xsl:variable name="staff" select="."/>
-            <xsl:variable name="measureDurFraction">
+            <xsl:variable name="measureDurFraction" as="xs:string">
               <xsl:apply-templates select=".[$forceContinueVoices]/descendant::mei:layer[1]" mode="getDurFraction"/>
             </xsl:variable>
             <xsl:for-each select="$layerNsInStaff">
@@ -349,6 +355,7 @@
           <xsl:with-param name="staffNumber" select="$staffNumber"/>
         </xsl:call-template>
       </xsl:if>
+      <xsl:apply-templates select="." mode="buildDynamics"/>
     </xsl:for-each>
     <xsl:text>&#10;</xsl:text>
     <xsl:apply-templates/>
@@ -620,6 +627,7 @@
         <xsl:value-of select="concat('\mdiv',local:number2alpha($mdivNumber),'_staff',local:number2alpha($staffNumber),'_verse',local:number2alpha(.),' }&#10;')" />
       </xsl:for-each>
     </xsl:if>
+    <xsl:value-of select="concat('\new Dynamics \mdiv',local:number2alpha($mdivNumber),'_staff',local:number2alpha($staffNumber),'_dynamics')" /> 
   </xsl:template>
   <!-- MEI instrument definition -->
   <xsl:template match="mei:instrDef">
@@ -1752,7 +1760,8 @@
   </xsl:template>
   <!-- MEI dynamic -->
   <xsl:template match="mei:dynam" mode="pre" />
-  <xsl:template match="mei:dynam">
+  <xsl:variable name="lilyDynamics" select="('ppppp', 'pppp', 'ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff', 'ffff', 'fffff', 'fp', 'sf', 'sff', 'sp', 'spp', 'sfz', 'rfz')"/>
+  <xsl:template match="mei:dynam[normalize-space()=$lilyDynamics]">
     <xsl:if test="@xml:id">
       <xsl:value-of select="concat('-\tweak DynamicText.id #&quot;', @xml:id, '&quot;')" />
     </xsl:if>
@@ -1761,7 +1770,7 @@
       <xsl:call-template name="setOffset" />
     </xsl:if>
     <xsl:call-template name="setMarkupDirection" />
-    <xsl:value-of select="concat('\',translate(.,'.',''))" />
+    <xsl:value-of select="concat('\',translate(.,'.',''),' ')" />
   </xsl:template>
   <!-- MEI hairpin -->
   <xsl:template match="mei:hairpin">
@@ -2015,7 +2024,7 @@
   <xsl:template match="mei:tempo"/>
   <!-- MEI directive -->
   <xsl:template match="mei:dir" mode="pre" />
-  <xsl:template match="mei:dir">
+  <xsl:template match="mei:dir|mei:dynam">
     <xsl:if test="@xml:id">
       <xsl:value-of select="concat('-\tweak TextScript.id #&quot;', @xml:id, '&quot; ')" />
     </xsl:if>
@@ -2025,7 +2034,14 @@
     </xsl:if>
     <xsl:call-template name="setMarkupDirection" />
     <xsl:text>\markup {</xsl:text>
-    <xsl:apply-templates/>
+    <xsl:choose>
+      <xsl:when test="self::mei:dynam[matches(., '^[srmfpz]+$')]">
+        <xsl:text></xsl:text>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:apply-templates/>
+      </xsl:otherwise>
+    </xsl:choose>
     <xsl:text>}&#32;</xsl:text>
   </xsl:template>
   <!-- MEI line -->
@@ -4109,6 +4125,54 @@
         </xsl:call-template>
       </xsl:if>
   </xsl:template>
+  <!-- build dynamics -->
+  <xsl:template match="mei:staffDef" mode="buildDynamics">
+    <xsl:param name="staffNumber" select="@n"/>
+    <xsl:param name="mdivNumber" select="ancestor::mei:mdiv/@n" />
+    <xsl:value-of select="concat('mdiv',local:number2alpha($mdivNumber),'_staff',local:number2alpha($staffNumber),'_dynamics = {&#10;')" />
+    <xsl:for-each select="ancestor::mei:mdiv[1]//mei:staff[@n=$staffNumber]">
+      <xsl:variable name="meterCountAndUnit" select="preceding::*[@meter.count][1]/(@meter.count, @meter.unit)" as="attribute()+"/>
+      <xsl:variable name="meterCount" select="xs:integer($meterCountAndUnit[1])"/>
+      <xsl:variable name="meterUnit" select="xs:integer($meterCountAndUnit[2])"/>
+      <xsl:variable name="tstampedDynams" select="key('dynamsByStaff', generate-id())"/>
+      <xsl:variable name="tstampMeasurePartMatch" select="'^[0-9]+m\s*\+\s*'"/>
+      <!-- As we need to have access to the preceding grouping key to calculate the tstamp difference, we
+        need to compile the list of tstamps.
+        We use xs:decimal here because it's arbitrary precision decimal because
+         * it can faithfully represent the decimal notation used in tstamp attributes 
+         * we don't want rounding errors to build up through an entire piece of music. -->
+      <xsl:variable name="tstamps" as="xs:decimal*">
+        <xsl:for-each-group select="$tstampedDynams" group-by="replace(., $tstampMeasurePartMatch, '')">
+          <xsl:sort select="current-grouping-key()" data-type="number"/>
+          <!-- We don't support the left barline alignment, which means lowest timestamp we support is 1. -->
+          <xsl:copy-of select="max((1, xs:decimal(current-grouping-key())))"/>
+        </xsl:for-each-group>
+      </xsl:variable>
+      <xsl:for-each-group select="$tstampedDynams" group-by="replace(., $tstampMeasurePartMatch, '')">
+        <xsl:sort select="current-grouping-key()" data-type="number"/>
+        <xsl:variable name="currentIndex" select="position()"/>
+        <xsl:variable name="currentTstamp" select="$tstamps[$currentIndex]"/>
+        <xsl:variable name="followingTstamp" select="if ($currentIndex = last()) then $meterCount + 1 else $tstamps[$currentIndex + 1]" as="xs:decimal"/>
+        <xsl:if test="$currentIndex = 1 and $currentTstamp != 1">
+          <!-- If the first tstampe isn't at right on the first beat, we need to fill the gap before it. -->
+          <xsl:value-of select="concat('s1*', local:decimal2fraction(($currentTstamp - 1) div $meterUnit), ' ')"/>
+        </xsl:if>
+        <xsl:variable name="eventDuration" select="($followingTstamp - $tstamps[$currentIndex]) div $meterUnit" as="xs:decimal"/>
+        <xsl:value-of select="concat('s1*', local:decimal2fraction($eventDuration), ' ')"/>
+        <xsl:apply-templates select="current-group()[local-name()='tstamp']/.."/>
+        <xsl:for-each select="current-group()[local-name()='tstamp2']">
+          <xsl:text>\! </xsl:text>
+        </xsl:for-each>
+      </xsl:for-each-group>
+      <xsl:if test="not($tstamps[1])">
+        <!-- We have no dynamics here, but we still need to fill the measure. -->
+        <xsl:text>s1*</xsl:text>
+        <xsl:apply-templates select="mei:layer[1]" mode="getDurFraction"/>
+        <xsl:text> </xsl:text>
+      </xsl:if>
+    </xsl:for-each>
+    <xsl:text>&#10;}&#10;&#10;</xsl:text>
+  </xsl:template>
   <!-- add beams -->
   <xsl:template mode="addBeamMarkup" match="*"/>
   <xsl:template mode="addBeamMarkup" match="*[key('isBeamStart', generate-id())]">
@@ -4307,7 +4371,7 @@
   </xsl:function>
   <xsl:template match="mei:staff" mode="createContinuousVoices">
     <xsl:param name="layerN"/>
-    <xsl:param name="measureDurFraction"/>
+    <xsl:param name="measureDurFraction" as="xs:string"/>
     <xsl:param name="needsDivider" as="xs:boolean"/>
     <xsl:param name="oneVoice" as="xs:boolean"/>
     <xsl:variable name="layer" select="mei:layer[@n = $layerN]"/>
@@ -4329,9 +4393,7 @@
         <xsl:if test="$needsDivider">
           <xml:text>\\ </xml:text>
         </xsl:if>
-        <xml:text>{ #(make-music 'SkipEvent 'duration (ly:make-duration 0 0 </xml:text>
-        <xsl:value-of select="$measureDurFraction"/>
-        <xml:text>)) } </xml:text>
+        <xsl:value-of select="concat('s1*', $measureDurFraction, ' ')"/>
       </xsl:otherwise>
     </xsl:choose>
   </xsl:template>
@@ -4343,7 +4405,7 @@
       <xsl:value-of select="concat('\set Timing.measurePosition = #(ly:make-moment -', $durFraction, ') ')"/>
     </xsl:if>
   </xsl:template>
-  <xsl:template match="mei:layer" mode="getDurFraction">
+  <xsl:template match="mei:layer" mode="getDurFraction" as="xs:string">
     <xsl:variable name="durElements" select="descendant::*[@dur][not(ancestor::mei:chord or ancestor::mei:fTrem)]" as="element()*"/>
     <!-- We might have a measure with non-numerical @durs, so test if we'd output something valid -->
     <xsl:choose>
@@ -4395,5 +4457,12 @@
   <xsl:function name="local:getPlistRefs">
     <xsl:param name="plist" as="attribute()"/>
     <xsl:sequence select="for $idref in tokenize($plist, '\s+') return $plist/key('idref', $idref)"/>
+  </xsl:function>
+  <xsl:function name="local:decimal2fraction" as="xs:string">
+    <xsl:param name="value" as="xs:decimal"/>
+    <xsl:variable name="stringValue" select="string($value)"/>
+    <xsl:variable name="numerator" select="translate($stringValue, '.', '')"/>
+    <xsl:variable name="denominatorExponent" select="string-length(substring-after($stringValue, '.'))"/>
+    <xsl:value-of select="concat($numerator, '/', '1', local:repeatString('0', $denominatorExponent))"/>
   </xsl:function>
 </xsl:stylesheet>
