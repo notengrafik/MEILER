@@ -330,6 +330,8 @@
         <xsl:if test="ancestor::mei:ending and not(ancestor::mei:ending/following-sibling::*[1][self::mei:ending])">
           <xsl:text>&#32;&#32;\set Score.repeatCommands = #'((volta #f))&#10;</xsl:text>
         </xsl:if>
+        <!-- Bar checks -->
+        <xsl:text> | </xsl:text>
         <!-- add breaks -->
         <xsl:variable name="followingBreaks" select="key('breaksByPrecedingMeasure', ancestor::mei:measure[1]/generate-id())"/>
         <xsl:apply-templates select="$followingBreaks"/>
