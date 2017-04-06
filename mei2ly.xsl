@@ -4186,9 +4186,8 @@
       </xsl:for-each-group>
       <xsl:if test="not($tstamps[1])">
         <!-- We have no dynamics here, but we still need to fill the measure. -->
-        <xsl:text>s1*</xsl:text>
-        <xsl:apply-templates select="mei:layer[1]" mode="getDurFraction"/>
-        <xsl:text> </xsl:text>
+        <!-- TODO: Dirty, hacky... -->
+        <xsl:value-of select="concat('s', preceding::*[@meter.unit][1]/concat(@meter.unit,'*',@meter.count), ' ')" />
       </xsl:if>
     </xsl:for-each>
     <xsl:text>&#10;}&#10;&#10;</xsl:text>
